@@ -1,0 +1,78 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "title": "Pipeline throughput (events/sec)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "targets": [
+        {"expr": "rate(producer_events_sent_total[1m])", "legendFormat": "produced", "refId": "A"},
+        {"expr": "rate(consumer_events_consumed_total[1m])", "legendFormat": "consumed", "refId": "B"}
+      ]
+    },
+    {
+      "title": "Consumer lag by partition (messages)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [
+        {"expr": "consumer_lag_messages", "legendFormat": "partition {{partition}}", "refId": "A"}
+      ]
+    },
+    {
+      "title": "Total consumer lag (all partitions)",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 500}, {"color": "red", "value": 2000}]}}, "overrides": []},
+      "targets": [{"expr": "sum(consumer_lag_messages)", "refId": "A"}]
+    },
+    {
+      "title": "Open windows in memory",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 6, "x": 6, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"expr": "consumer_open_windows", "refId": "A"}]
+    },
+    {
+      "title": "Late / out-of-order events (dropped)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"expr": "consumer_events_late_total", "legendFormat": "late events", "refId": "A"}]
+    },
+    {
+      "title": "Windows flushed to Postgres (rate)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"expr": "rate(consumer_windows_flushed_total[5m])", "legendFormat": "windows/sec", "refId": "A"}]
+    },
+    {
+      "title": "Window flush latency (p95, seconds)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus-ds"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(consumer_flush_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "A"}]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["taxi", "streaming"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "NYC Taxi Streaming — Observability",
+  "uid": "taxi-streaming-obs",
+  "version": 1
+}
