@@ -18,6 +18,12 @@ PostgreSQL, and exposes metrics to Prometheus and Grafana.
 
 ## System Architecture
 
+![System Architecture](docs/system-architecture.svg)
+
+
+![System Architecture](docs/system-architecture.svg)
+
+
 ```mermaid
 flowchart LR
     subgraph HOST["Your Laptop"]
