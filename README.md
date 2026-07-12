@@ -16,6 +16,68 @@ PostgreSQL, and exposes metrics to Prometheus and Grafana.
 | Observability | Prometheus + Grafana |
 | Infra | Docker Compose |
 
+## System Architecture
+
+```mermaid
+flowchart LR
+    subgraph HOST["Your Laptop"]
+        P9092["localhost:9092-9094"]
+        P5433["localhost:5433"]
+        P9090["localhost:9090"]
+        P3000["localhost:3000"]
+    end
+
+    subgraph DOCKER["Docker Compose Network"]
+        subgraph KAFKA["Kafka Cluster — KRaft, 3 brokers"]
+            K1["kafka1\n:29092 / :9092"]
+            K2["kafka2\n:29092 / :9093"]
+            K3["kafka3\n:29092 / :9094"]
+            TOPIC["taxi-trips-stream\n6 partitions · RF 3 · min.ISR 2"]
+        end
+
+        PROD["Producer\n~30 ev/s\nkey: zone ID\nacks=all"]
+
+        subgraph CONSUMER["Consumer"]
+            WINDOW["Tumbling Window\n5 min buckets"]
+            WM["Watermark\n10s grace period"]
+            BP["Backpressure\nmanual commit\nmax_poll=200"]
+        end
+
+        subgraph PG["PostgreSQL :5433"]
+            RAW["stream_trip_events\n(append raw)"]
+            AGG["trip_window_agg\n(upsert aggregates)"]
+        end
+
+        PROM["Prometheus :9090"]
+        GRAF["Grafana :3000"]
+    end
+
+    PARQUET["data/\nyellow_tripdata\n2023-01.parquet"] --> PROD
+    PROD -->|"JSON events"| TOPIC
+    TOPIC -->|"poll (bounded)"| WINDOW
+    WINDOW --> WM
+    WM --> BP
+    BP -->|"raw append"| RAW
+    BP -->|"agg upsert"| AGG
+    BP -->|"commit offset\nonly after DB write"| TOPIC
+
+    PROD -.->|":8001/metrics"| PROM
+    CONSUMER -.->|":8000/metrics"| PROM
+    PROM -.-> GRAF
+```
+
+### Data flow — step by step
+
+1. **Producer** reads the NYC parquet and pushes JSON events at ~30 ev/s, keyed by pickup zone
+2. Events land on one of **6 partitions** — key hash determines which, so all events for one zone hit the same partition
+3. **Consumer** polls bounded batches of 200 records (`max_poll_records`)
+4. Each event is bucketed into a **5-minute tumbling window** by its event-time (not arrival time)
+5. **Watermark** = max event-time seen minus 10 seconds. A window flushes only once its end is behind the watermark
+6. On flush: raw events **appended** to `stream_trip_events`, aggregates **upserted** into `trip_window_agg` in one transaction
+7. Offsets are committed **only after Postgres confirms** — if the DB slows, the consumer slows, but never drops events
+8. **Prometheus** scrapes both `/metrics` endpoints every 5s; **Grafana** visualizes throughput, lag, windows, latency, and late events
+
+
 ## Quick start
 ```bash
 chmod +x setup.sh
